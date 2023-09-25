@@ -21,16 +21,29 @@ cursor.fetchall()
 movies=pd.read_sql("SELECT * FROM movies",conn)
 ratings=pd.read_sql("SELECT * FROM ratings",conn)
 
-###ver caracteristicas de la base
+###ver caracteristicas de las base
 
-movies.head()
-ratings.head()
+movies.head()#vision general
+movies.info()#tipo de cada variable
+movies.duplicated().sum()#veriicar duplicados
+
+ratings.head()#vision general
+ratings.info()#tipo de cada variable
+ratings.duplicated().sum()#verificar duplicados
 
 
-
-#separar generos en movies
+#separar generos en db movies
 genres=movies['genres'].str.split('|')
 te = TransactionEncoder()
 genres = te.fit_transform(genres)
 genres = pd.DataFrame(genres, columns = te.columns_)
 movies_split=pd.concat([movies,genres],axis=1)
+
+#verificar categorias por errores tipograficos o categorias similares
+#generos de peliculas
+genres.columns.tolist()
+#ratings
+np.sort(ratings["rating"].unique())
+
+#distribucion de las categorias
+
