@@ -37,7 +37,9 @@ genres=movies['genres'].str.split('|')
 te = TransactionEncoder()
 genres = te.fit_transform(genres)
 genres = pd.DataFrame(genres, columns = te.columns_)
-movies_split=pd.concat([movies,genres],axis=1)
+movies_split=pd.concat([movies,genres],axis=1).drop(["genres"],axis=1)
+#llevarla a sql
+movies_split.to_sql("movies_split",conn,if_exists="replace")
 
 #verificar categorias por errores tipograficos o categorias similares
 #generos de peliculas
@@ -45,5 +47,29 @@ genres.columns.tolist()
 #ratings
 np.sort(ratings["rating"].unique())
 
-#distribucion de las categorias
+#base de datos de peliculas
+# Cantidad de peliculas por genero
+gen_total=pd.DataFrame(movies_split.drop(["title","movieId"],axis=1).sum()).reset_index()
+gen_total.columns=["Genre","Qty"]
+gen_total=gen_total.sort_values(by="Qty",ascending=False)
+fig  = px.bar(gen_total, x= 'Genre',y="Qty",
+              title= 'Numero de peliculas por genero',
+              labels={'Genre':'Genero'})
+fig.show()
+
+#Base de datos de calificaciones
+#cantidad de calificaciones por usuario
+rating_user=pd.read_sql(''' select "userId" as User_Id,
+                         count(*) as Qty
+                         from ratings
+                         group by "userId"
+                         order by Qty asc
+                         ''',conn )
+fig  = px.histogram(rating_user, x= 'Qty', title= 'Hist frecuencia de numero de calificaciones por usario')
+fig.show() 
+rating_user.describe()
+# no vemos necesario eliminar usuarios, ya que el minimo de calificaciones por usuario el 20 que es un buen numero y solo un 25% de los usuarios tienen mas de 168 calificaciones.
+
+
+
 
