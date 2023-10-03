@@ -36,11 +36,11 @@ print(movies.isnull().sum())
 print(ratings.isnull().sum())
 
 #En el dataframe ratings se cambia el formato de timestamp por uno de fecha para hacer su manejo mas cómodo.
-ratings['time'] =pd.to_datetime(ratings['timestamp'], unit='s')
+ratings['rating_time'] =pd.to_datetime(ratings['timestamp'], unit='s')
 ratings.drop(columns=["timestamp"],inplace=True)
 ratings.head()
 #llevarla a sql
-ratings.to_sql("ratings_split",conn,if_exists="replace")
+ratings.to_sql("ratings_split",conn,if_exists="replace",index=False)
 pd.read_sql("""select * from ratings_split""",conn)
 
 
@@ -52,20 +52,40 @@ genres = te.fit_transform(genres)
 genres = pd.DataFrame(genres, columns = te.columns_)
 
 #extraemos año de estreno del titulo
-movies['movyear'] = movies['title'].str[-5:-1]
-movies=movies[movies["movyear"].str.contains ('r On') == False ]
+movies['movyear'] = movies['title'].str.strip().str[-5:-1]
+
+#valores extraidos
+movies['movyear'].unique()
+
+#peliculas sin año de estreno especifico
+
+movies[movies['movyear'].str.contains('[a-zA-Z]')] #info completa
+
+sin_a=movies["movyear"][movies['movyear'].str.contains('[a-zA-Z]')]
+
+#cantidad de calificaciones de estas peliculas
+ratings[ratings["movieId"].isin(movies["movieId"][movies['movyear'].str.contains('[a-zA-Z]')])].groupby("movieId").size()
+
+
+#poner en columna de año de estreno el valor "No_year" a peliculas sin año
+#Funcion para remplazar valores de columna
+def reemplazar_valor(valor):
+  if valor in sin_a.values:
+      return "0"
+  return valor
+movies["movyear"]=movies['movyear'].apply(reemplazar_valor)
 
 #creamos nueva base con esta info
 movies_split=pd.concat([movies,genres],axis=1).drop(["genres"],axis=1)
 #llevarla a sql
-movies_split.to_sql("movies_split",conn,if_exists="replace")
+movies_split.to_sql("movies_split",conn,if_exists="replace",index=False)
 pd.read_sql("""select * from movies_split""",conn)
 
 #verificar categorias por errores tipograficos o categorias similares
 #generos de peliculas
 genres.columns.tolist()
 #ratings
-np.sort(ratings["rating"].unique())
+np.sort(ratings["rating"].unique()) #no hay calificaciones de 0
 
 
 
@@ -74,7 +94,7 @@ np.sort(ratings["rating"].unique())
 
 #base de datos de peliculas
 # Cantidad de peliculas por genero (usando python, todos los generos al tiempo)
-gen_total=pd.DataFrame(movies_split.drop(["title","movieId"],axis=1).sum()).reset_index()
+gen_total=pd.DataFrame(movies_split.drop(["title","movieId","movyear"],axis=1).sum()).reset_index()
 gen_total.columns=["Genre","Qty"]
 gen_total=gen_total.sort_values(by="Qty",ascending=False)
 
@@ -87,6 +107,7 @@ fig.show()
 # Cantidad de peliculas por genero (usando sql, se debe especificar que genero)
 gen_sum=pd.read_sql("""SELECT SUM(Comedy) AS Qty_Comedy, SUM(Action) AS Qty_Action, SUM(Animation) AS Qty_Animation
 FROM movies_split""",conn)
+gen_sum
 
 #vemos que todos los generos aportan al analisis, con una cantidad de datos significativa por genero y eliminar los generos con pocas calificaciones, no aporta tampoco a la eficiencia del codigo.
 
@@ -104,10 +125,12 @@ rating_user.describe()
 
 #ver rango de fechas de las calificaciones
 
-pd.read_sql("""select min(strftime('%Y',time)) as año_min, max(strftime('%Y',time)) as año_max,max(strftime('%Y',time))-min(strftime('%Y',time)) as rango_años from ratings_split""",conn)
+pd.read_sql("""select min(strftime('%Y',rating_time)) as año_min, max(strftime('%Y',rating_time)) as año_max,max(strftime('%Y',rating_time))-min(strftime('%Y',rating_time)) as rango_años from ratings_split""",conn)
 
 
 # no vemos necesario eliminar usuarios, ya que el minimo de calificaciones por usuario es 20 que es un buen numero y solo un 25% de los usuarios tienen mas de 168 calificaciones, con datos atipicos que suben el promedio a 165 calificaciones por usuario.
+#ademas vemos que el rango de las calificaciones es 22 años, tiempo en el cual un usuario puede calificar 2698 peliculas que es el valor maximo (aprox 10 peliculas mensuales)
+
 
 #cantidad de calificaciones por pelicula
 rating_movie=pd.read_sql(''' select "movieId" as Movie_Id,
